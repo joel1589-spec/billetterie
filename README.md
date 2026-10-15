@@ -29,13 +29,3 @@ cd frontend
 npm install
 npm run dev                     # http://localhost:5173
 ```
-**Tests** (PostgreSQL requis : `select_for_update` n'a aucun effet sous SQLite, le test de concurrence est ignoré sinon) :
-```bash
-python manage.py test ticketing
-```
-**Pic de charge** (200 utilisateurs, 50 sièges – l'événement n°2 du seed) :
-```bash
-RESERVATION_RATE=100000/min python manage.py runserver   # relancer le serveur avec le rate limit relevé
-python scripts/load_test.py --event-id 2 --users 200
-# ... ✅ ZÉRO SURVENTE : aucun siège attribué deux fois
-```
