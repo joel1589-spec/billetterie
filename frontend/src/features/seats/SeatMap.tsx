@@ -75,7 +75,7 @@ export function SeatMap({ seats, categories, selected, onToggle }: Props) {
                 key={seat.id}
                 type="button"
                 ref={(el) => { if (el) refs.current.set(seat.id, el); else refs.current.delete(seat.id); }}
-                className={`seat seat-${visual} cat-${(catIndex.get(seat.categoryId) ?? 0) % 6}`}
+                className={`seat seat-${visual} cat-${(catIndex.get(seat.categoryId) ?? 0) % 6}${c === Math.ceil(rowSeats.length / 2) - 1 && rowSeats.length > 6 ? " aisle" : ""}`}
                 tabIndex={seat.id === activeId ? 0 : -1}
                 aria-label={ariaLabel}
                 aria-pressed={selectable || isSelected ? isSelected : undefined}

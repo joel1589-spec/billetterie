@@ -76,7 +76,7 @@ export function CreateEventPage() {
 
       <p>Total : {totalRows} rangées × {seatsPerRow || 0} sièges = <strong>{totalRows * (Number(seatsPerRow) || 0)}</strong> sièges</p>
       {mutation.isError && <p role="alert" className="error">{mutation.error.message}</p>}
-      <button className="primary" disabled={mutation.isPending || totalRows > 52}>
+      <button className="primary block" disabled={mutation.isPending || totalRows > 52}>
         {mutation.isPending ? "Création…" : "Créer l'événement et le plan de salle"}
       </button>
     </form>

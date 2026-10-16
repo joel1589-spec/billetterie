@@ -3,7 +3,11 @@ import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cancelOrder, fetchOrder, payOrder } from "../../api/orders";
 import { formatPrice } from "../../components/format";
+import { Skeleton } from "../../components/Skeleton";
 import { useCountdown } from "./useCountdown";
+
+const RADIUS = 48;
+const CIRC = 2 * Math.PI * RADIUS;
 
 export function OrderPage() {
   const orderId = Number(useParams().orderId);
@@ -14,8 +18,7 @@ export function OrderPage() {
   const { data: order, status, error } = useQuery({
     queryKey: ["orders", orderId],
     queryFn: () => fetchOrder(orderId),
-    // Tant que la commande est "pending", on interroge toutes les 2 s :
-    // le webhook arrive entre 1 et 15 s plus tard, de façon asynchrone.
+    // Webhook asynchrone (1 à 15 s) : on interroge toutes les 2 s tant que la commande est "pending".
     refetchInterval: (q) => (q.state.data?.status === "pending" ? 2000 : false),
   });
 
@@ -24,17 +27,15 @@ export function OrderPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [order?.serverTime],
   );
-  const { label, seconds } = useCountdown(order?.expiresAt, clockOffset);
+  const { label, seconds, remainingMs } = useCountdown(order?.expiresAt, clockOffset);
   const pending = order?.status === "pending";
 
-  // Annonces lecteur d'écran uniquement aux moments clés (pas à chaque seconde).
   useEffect(() => {
     if (!pending) return;
     if (seconds === 60) setAnnounce("Votre réservation expire dans 1 minute.");
     if (seconds === 0) setAnnounce("Votre réservation a expiré.");
   }, [seconds, pending]);
 
-  // Le délai est écoulé côté client : on demande confirmation au serveur (source de vérité).
   useEffect(() => {
     if (pending && seconds === 0) qc.invalidateQueries({ queryKey: ["orders", orderId] });
   }, [pending, seconds, qc, orderId]);
@@ -45,47 +46,80 @@ export function OrderPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["orders", orderId] }),
   });
 
-  if (status === "pending") return <p role="status" aria-busy="true">Chargement de la commande…</p>;
-  if (status === "error") return <p role="alert">Erreur : {error.message}</p>;
+  if (status === "pending")
+    return (
+      <div className="card order" role="status" aria-busy="true">
+        <span className="sr-only">Chargement de la commande…</span>
+        <div className="order-body"><Skeleton h={28} w="60%" /><Skeleton h={90} /><Skeleton h={44} /></div>
+      </div>
+    );
+  if (status === "error") return <p role="alert" className="banner err">Erreur : {error.message}</p>;
+
+  const totalMs = Math.max(1, Date.parse(order.expiresAt) - Date.parse(order.createdAt));
+  const progress = Math.min(1, remainingMs / totalMs);
+  const urgent = seconds <= 60;
 
   return (
-    <section className="card">
-      <h1>Commande n°{order.id}</h1>
-      <p>{order.eventTitle}</p>
-      <ul>
-        {order.seats.map((s) => (
-          <li key={s.id}>Rangée {s.row}, siège {s.number} — {formatPrice(s.priceCents)}</li>
-        ))}
-      </ul>
-      <p><strong>Total : {formatPrice(order.totalCents)}</strong></p>
+    <section className="card order">
+      <div className="order-head">
+        <h1>Commande n°{order.id}</h1>
+        <p>{order.eventTitle}</p>
+      </div>
+      <div className="order-body">
+        <ul className="ticket-list">
+          {order.seats.map((s) => (
+            <li key={s.id}><span>Rang {s.row} · siège {s.number}</span><strong>{formatPrice(s.priceCents)}</strong></li>
+          ))}
+        </ul>
+        <div className="total"><span>Total</span><strong>{formatPrice(order.totalCents)}</strong></div>
 
-      {order.status === "pending" && (
-        <>
-          <p className="countdown" aria-hidden="true">Temps restant : <strong>{label}</strong></p>
-          {paymentSent ? (
-            <p role="status">Paiement en cours de traitement… (cela peut prendre jusqu'à 15 secondes)</p>
-          ) : (
-            <div className="actions">
-              <button className="primary" onClick={() => pay.mutate()} disabled={pay.isPending}>Payer</button>
-              <button onClick={() => cancel.mutate()} disabled={cancel.isPending}>Annuler</button>
+        {order.status === "pending" && (
+          <>
+            <div className="ring-wrap">
+              <div className={`ring ${urgent ? "urgent" : ""}`} aria-hidden="true">
+                <svg width="112" height="112" viewBox="0 0 112 112">
+                  <circle className="track" cx="56" cy="56" r={RADIUS} />
+                  <circle className="bar" cx="56" cy="56" r={RADIUS}
+                          strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - progress)} />
+                </svg>
+                <span className="time">{label}</span>
+              </div>
+              <p className="muted" style={{ margin: 0 }}>
+                {urgent ? "Dépêchez-vous, vos sièges vont être libérés !" : "Vos sièges sont réservés pour vous le temps du paiement."}
+              </p>
             </div>
-          )}
-          {(pay.isError || cancel.isError) && (
-            <p role="alert">{(pay.error ?? cancel.error)?.message}</p>
-          )}
-        </>
-      )}
-      {order.status === "paid" && <p role="status" className="banner ok">✅ Paiement confirmé. Vos places sont à vous !</p>}
-      {order.status === "expired" && <p role="alert" className="banner">⌛ La réservation a expiré, les sièges ont été libérés.</p>}
-      {order.status === "cancelled" && <p role="status" className="banner">Commande annulée.</p>}
-      {order.status === "refunded" && (
-        <p role="alert" className="banner">
-          Votre paiement est arrivé après l'expiration de la réservation : il a été remboursé.
-        </p>
-      )}
 
-      <div className="sr-only" aria-live="polite">{announce}</div>
-      <p><Link to={`/events/${order.eventId}`}>← Retour au plan de salle</Link></p>
+            {paymentSent ? (
+              <p role="status" className="banner"><span className="spinner" /> Paiement en cours de traitement… (jusqu'à 15 secondes)</p>
+            ) : (
+              <div className="actions">
+                <button className="primary" onClick={() => pay.mutate()} disabled={pay.isPending}>
+                  Payer {formatPrice(order.totalCents)}
+                </button>
+                <button className="ghost" onClick={() => cancel.mutate()} disabled={cancel.isPending}>Annuler</button>
+              </div>
+            )}
+            {(pay.isError || cancel.isError) && <p role="alert" className="error">{(pay.error ?? cancel.error)?.message}</p>}
+          </>
+        )}
+
+        {order.status === "paid" && (
+          <div role="status" className="result"><div className="big">🎉</div><h2>Paiement confirmé</h2><p className="muted">Vos places sont à vous. Bon spectacle !</p></div>
+        )}
+        {order.status === "expired" && (
+          <div role="alert" className="result"><div className="big">⌛</div><h2>Réservation expirée</h2><p className="muted">Les sièges ont été libérés. Vous pouvez en choisir d'autres.</p></div>
+        )}
+        {order.status === "cancelled" && (
+          <div role="status" className="result"><div className="big">🚫</div><h2>Commande annulée</h2></div>
+        )}
+        {order.status === "refunded" && (
+          <div role="alert" className="result"><div className="big">↩️</div><h2>Paiement remboursé</h2>
+            <p className="muted">Votre paiement est arrivé après l'expiration de la réservation : il vous a été remboursé.</p></div>
+        )}
+
+        <div className="sr-only" aria-live="polite">{announce}</div>
+        <Link to={`/events/${order.eventId}`}>← Retour au plan de salle</Link>
+      </div>
     </section>
   );
 }

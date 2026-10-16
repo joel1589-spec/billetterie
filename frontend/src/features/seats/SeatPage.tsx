@@ -6,6 +6,7 @@ import { fetchPendingOrders } from "../../api/orders";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../auth/AuthContext";
 import { formatDate, formatPrice } from "../../components/format";
+import { Skeleton } from "../../components/Skeleton";
 import type { Seat, SocketMessage } from "../../types/domain";
 import { SeatMap } from "./SeatMap";
 import { useSeats } from "./useSeats";
@@ -14,6 +15,7 @@ import { useReserveSeats } from "./useReserveSeats";
 import { WaitlistPanel, waitlistKey } from "./WaitlistPanel";
 
 const MAX_SEATS = 6;
+const SOCKET_TEXT = { open: "Temps réel actif", connecting: "Connexion…", reconnecting: "Reconnexion…" } as const;
 
 export function SeatPage() {
   const eventId = Number(useParams().eventId);
@@ -41,6 +43,7 @@ export function SeatPage() {
         const lost = m.seats.filter((s) => prev.has(s.id) && s.status !== "available");
         if (lost.length === 0) return prev;
         setAnnounce(`${lost.length} siège(s) sélectionné(s) viennent d'être pris par un autre utilisateur.`);
+        setMessage("Un siège que vous aviez choisi vient d'être pris par quelqu'un d'autre.");
         const next = new Set(prev);
         lost.forEach((s) => next.delete(s.id));
         return next;
@@ -73,10 +76,11 @@ export function SeatPage() {
     });
   };
 
+  const unselect = (id: number) => setSelected((prev) => { const n = new Set(prev); n.delete(id); return n; });
+
   const submit = () => {
     setMessage(null);
-    const ids = [...selected];
-    reserve.mutate(ids, {
+    reserve.mutate([...selected], {
       onSuccess: (order) => navigate(`/orders/${order.id}`),
       onError: (err) => {
         if (err instanceof ApiError && err.status === 409) {
@@ -93,61 +97,87 @@ export function SeatPage() {
   };
 
   if (eventQ.status === "pending" || seatsQ.status === "pending")
-    return <p role="status" aria-busy="true">Chargement du plan de salle…</p>;
+    return (
+      <div role="status" aria-busy="true">
+        <span className="sr-only">Chargement du plan de salle…</span>
+        <Skeleton h={34} w="40%" /><div style={{ height: 16 }} /><Skeleton h={420} />
+      </div>
+    );
   if (eventQ.status === "error" || seatsQ.status === "error") {
     return (
-      <div role="alert">
+      <div role="alert" className="banner err">
         <p>Impossible de charger l'événement.</p>
         <button onClick={() => { eventQ.refetch(); seatsQ.refetch(); }}>Réessayer</button>
       </div>
     );
   }
-  if (!seats || seats.length === 0) return <p>Cet événement n'a pas encore de plan de salle.</p>;
+  if (!seats || seats.length === 0) return <p className="card empty">Cet événement n'a pas encore de plan de salle.</p>;
 
-  const total = [...selected].reduce((sum, id) => sum + (priceOf.get(seats.find((s) => s.id === id)?.categoryId ?? -1) ?? 0), 0);
+  const selectedSeats = [...selected].map((id) => seats.find((s) => s.id === id)).filter((s): s is Seat => Boolean(s));
+  const total = selectedSeats.reduce((sum, s) => sum + (priceOf.get(s.categoryId) ?? 0), 0);
   const soldOut = !seats.some((s) => s.status === "available");
   const pendingOrder = pendingQ.data?.[0];
 
   return (
     <section>
-      <p><Link to="/">← Événements</Link></p>
-      <h1>{event!.title}</h1>
-      <p><time dateTime={event!.startsAt}>{formatDate(event!.startsAt)}</time> · {event!.venue}</p>
-
-      {socketState !== "open" && (
-        <p role="status" className="banner">
-          {socketState === "connecting" ? "Connexion au temps réel…" : "Connexion perdue, reconnexion en cours… Le plan peut être obsolète."}
-        </p>
-      )}
-
-      {pendingOrder && (
-        <p className="banner">
-          Vous avez déjà une réservation en cours. <Link to={`/orders/${pendingOrder.id}`}>La reprendre</Link>
-        </p>
-      )}
-
-      <ul className="legend" aria-label="Légende">
-        {event!.categories.map((c, i) => (
-          <li key={c.id}><span className={`swatch cat-${i % 6}`} /> {c.name} — {formatPrice(c.priceCents)}</li>
-        ))}
-        <li>✓ sélectionné · ★ à vous · ⏳ en cours de réservation · ✕ vendu</li>
-      </ul>
-
-      <SeatMap seats={seats} categories={event!.categories} selected={selected} onToggle={toggle} />
-
-      <div className="summary" aria-live="polite">
-        <p>{selected.size} / {MAX_SEATS} sièges · <strong>{formatPrice(total)}</strong></p>
-        {!user ? (
-          <p><Link to="/login">Connectez-vous</Link> pour réserver.</p>
-        ) : (
-          <button className="primary" onClick={submit} disabled={selected.size === 0 || reserve.isPending}>
-            {reserve.isPending ? "Réservation…" : `Bloquer ces places (10 min)`}
-          </button>
-        )}
-        {message && <p role="alert" className="error">{message}</p>}
+      <p style={{ margin: 0 }}><Link to="/">← Tous les événements</Link></p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", flexWrap: "wrap" }}>
+        <div>
+          <h1>{event!.title}</h1>
+          <p className="muted" style={{ margin: 0 }}>
+            <time dateTime={event!.startsAt}>{formatDate(event!.startsAt)}</time> · 📍 {event!.venue}
+          </p>
+        </div>
+        <span className={`live live-${socketState}`} role="status"><i />{SOCKET_TEXT[socketState]}</span>
       </div>
 
-      {user && <WaitlistPanel eventId={eventId} soldOut={soldOut} />}
+      {socketState === "reconnecting" && (
+        <p role="alert" className="banner warn">Connexion perdue : le plan peut être obsolète. Reconnexion en cours…</p>
+      )}
+      {pendingOrder && (
+        <p className="banner">Vous avez déjà une réservation en cours.
+          <Link className="btn" to={`/orders/${pendingOrder.id}`}>La reprendre</Link></p>
+      )}
+
+      <div className="seat-layout" style={{ marginTop: "1rem" }}>
+        <div className="card mapcard">
+          <SeatMap seats={seats} categories={event!.categories} selected={selected} onToggle={toggle} />
+          <ul className="legend" aria-label="Légende">
+            {event!.categories.map((c, i) => (
+              <li key={c.id}><span className={`swatch cat-${i % 6}`} />{c.name} · {formatPrice(c.priceCents)}</li>
+            ))}
+            <li>✓ sélectionné</li><li>★ à vous</li><li>⏳ en cours de réservation</li><li>✕ vendu</li>
+          </ul>
+        </div>
+
+        <aside className="card summary" aria-label="Récapitulatif">
+          <h2>Votre sélection <span className="pill ok">{selected.size}/{MAX_SEATS}</span></h2>
+          {selectedSeats.length === 0 ? (
+            <p className="empty">Cliquez sur un siège libre pour le sélectionner. Navigation possible aux flèches du clavier.</p>
+          ) : (
+            <ul className="chips">
+              {selectedSeats.map((s) => (
+                <li className="chip" key={s.id}>
+                  <span>Rang {s.row} · siège {s.number}</span>
+                  <span>{formatPrice(priceOf.get(s.categoryId) ?? 0)}
+                    {" "}<button aria-label={`Retirer le siège ${s.row}${s.number}`} onClick={() => unselect(s.id)}>×</button></span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="total"><span>Total</span><strong>{formatPrice(total)}</strong></div>
+
+          {!user ? (
+            <Link className="btn primary block" to="/login">Connectez-vous pour réserver</Link>
+          ) : (
+            <button className="primary block" onClick={submit} disabled={selected.size === 0 || reserve.isPending}>
+              {reserve.isPending ? "Réservation…" : "Bloquer ces places (10 min)"}
+            </button>
+          )}
+          {message && <p role="alert" className="error" style={{ margin: 0 }}>{message}</p>}
+          {user && <WaitlistPanel eventId={eventId} soldOut={soldOut} />}
+        </aside>
+      </div>
       <div className="sr-only" aria-live="polite">{announce}</div>
     </section>
   );

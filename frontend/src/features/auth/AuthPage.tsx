@@ -28,6 +28,7 @@ export function AuthPage({ mode }: { mode: "login" | "register" }) {
 
   return (
     <form className="card form" onSubmit={submit}>
+      <p className="muted" style={{ margin: 0 }}>🎭 Billetterie</p>
       <h1>{mode === "login" ? "Connexion" : "Inscription"}</h1>
       <label>Nom d'utilisateur
         <input value={username} onChange={(e) => setUsername(e.target.value)} required autoComplete="username" />
@@ -42,7 +43,7 @@ export function AuthPage({ mode }: { mode: "login" | "register" }) {
                minLength={8} autoComplete={mode === "login" ? "current-password" : "new-password"} />
       </label>
       {error && <p role="alert" className="error">{error}</p>}
-      <button className="primary" disabled={busy}>{mode === "login" ? "Se connecter" : "Créer mon compte"}</button>
+      <button className="primary block" disabled={busy}>{mode === "login" ? "Se connecter" : "Créer mon compte"}</button>
       <p>
         {mode === "login"
           ? <>Pas de compte ? <Link to="/register">S'inscrire</Link></>

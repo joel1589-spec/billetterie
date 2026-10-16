@@ -10,10 +10,10 @@ export function DashboardPage() {
     refetchInterval: 10_000,
   });
 
-  if (status === "pending") return <p role="status" aria-busy="true">Chargement du tableau de bord…</p>;
+  if (status === "pending") return <p role="status" aria-busy="true" className="muted">Chargement du tableau de bord…</p>;
   if (status === "error")
     return (
-      <div role="alert">
+      <div role="alert" className="banner err">
         <p>Erreur : {error.message}</p>
         <button onClick={() => refetch()}>Réessayer</button>
       </div>
@@ -21,12 +21,20 @@ export function DashboardPage() {
 
   return (
     <section>
-      <h1>Tableau de bord</h1>
-      <p><Link className="btn" to="/backoffice/new">+ Créer un événement</Link></p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: ".75rem" }}>
+        <h1>Tableau de bord</h1>
+        <Link className="btn primary" to="/backoffice/new">+ Créer un événement</Link>
+      </div>
+      <div className="stats">
+        <div className="card stat"><span>Chiffre d'affaires</span><strong>{formatPrice(data.reduce((s, r) => s + r.revenueCents, 0))}</strong></div>
+        <div className="card stat"><span>Places vendues</span><strong>{data.reduce((s, r) => s + r.soldSeats, 0)}</strong></div>
+        <div className="card stat"><span>Réservations en cours</span><strong>{data.reduce((s, r) => s + r.pendingOrders, 0)}</strong></div>
+        <div className="card stat"><span>Réservations expirées</span><strong>{data.reduce((s, r) => s + r.expiredOrders, 0)}</strong></div>
+      </div>
       {data.length === 0 ? (
-        <p>Aucun événement. Créez le premier !</p>
+        <p className="card empty">Aucun événement. Créez le premier !</p>
       ) : (
-        <div className="tablewrap">
+        <div className="card tablewrap">
           <table>
             <caption className="sr-only">Statistiques par événement</caption>
             <thead>
@@ -40,7 +48,7 @@ export function DashboardPage() {
               {data.map((r) => (
                 <tr key={r.eventId}>
                   <th scope="row">{r.title}</th>
-                  <td>{(r.fillRate * 100).toFixed(1)} %</td>
+                  <td><div className="fillcell"><div className="meter" aria-hidden="true"><i style={{ width: `${r.fillRate * 100}%` }} /></div>{(r.fillRate * 100).toFixed(1)} %</div></td>
                   <td>{r.soldSeats} / {r.totalSeats}</td>
                   <td>{r.heldSeats}</td>
                   <td>{formatPrice(r.revenueCents)}</td>
