@@ -15,5 +15,6 @@ urlpatterns = [
     path("payments/webhook/", views.PaymentWebhookView.as_view()),
     path("backoffice/events/", views.BackofficeEventView.as_view()),
     path("backoffice/dashboard/", views.DashboardView.as_view()),
+    path("backoffice/audit/", views.AuditLogView.as_view()),
     path("", include(router.urls)),
 ]

@@ -19,7 +19,7 @@ export function CreateEventPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["backoffice"] });
       qc.invalidateQueries({ queryKey: ["events"] });
-      navigate("/backoffice");
+      navigate("/backoffice/events");
     },
   });
 

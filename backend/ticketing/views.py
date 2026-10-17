@@ -22,7 +22,7 @@ from .exceptions import (
     SeatLimitExceeded,
     SeatUnavailable,
 )
-from .models import Event, Order, Seat, WaitlistEntry
+from .models import AuditLog, Event, Order, Seat, WaitlistEntry
 from .services import audit, orders, waitlist
 
 
@@ -243,3 +243,34 @@ class DashboardView(APIView):
                 }
             )
         return Response(out)
+
+
+class AuditLogView(APIView):
+    """Journal d'audit. Admin : tout. Organisateur : ses actions et celles touchant ses événements/commandes."""
+
+    permission_classes = [IsOrganizerOrAdmin]
+
+    def get(self, request):
+        qs = AuditLog.objects.select_related("actor")
+        if request.user.role != "admin":
+            own_events = list(Event.objects.filter(organizer=request.user).values_list("id", flat=True))
+            own_orders = list(Order.objects.filter(event_id__in=own_events).values_list("id", flat=True))
+            qs = qs.filter(
+                Q(actor=request.user)
+                | Q(target_type="Event", target_id__in=own_events)
+                | Q(target_type="Order", target_id__in=own_orders)
+            )
+        return Response(
+            [
+                {
+                    "id": a.id,
+                    "createdAt": a.created_at,
+                    "actor": a.actor.username if a.actor else "système",
+                    "action": a.action,
+                    "targetType": a.target_type,
+                    "targetId": a.target_id,
+                    "metadata": a.metadata,
+                }
+                for a in qs[:200]
+            ]
+        )

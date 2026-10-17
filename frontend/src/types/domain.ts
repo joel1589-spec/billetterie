@@ -86,3 +86,13 @@ export interface NewEventInput {
 export type SocketMessage =
   | { type: "seats_changed"; seats: { id: number; status: SeatStatus }[] }
   | { type: "waitlist_notified"; userId: number; priorityUntil: string };
+
+export interface AuditEntry {
+  id: number;
+  createdAt: string;
+  actor: string;
+  action: string;
+  targetType: string;
+  targetId: number | null;
+  metadata: Record<string, unknown>;
+}

@@ -23,7 +23,7 @@ export function DashboardPage() {
     <section>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: ".75rem" }}>
         <h1>Tableau de bord</h1>
-        <Link className="btn primary" to="/backoffice/new">+ Créer un événement</Link>
+        <Link className="btn primary" to="/backoffice/events/new">+ Créer un événement</Link>
       </div>
       <div className="stats">
         <div className="card stat"><span>Chiffre d'affaires</span><strong>{formatPrice(data.reduce((s, r) => s + r.revenueCents, 0))}</strong></div>

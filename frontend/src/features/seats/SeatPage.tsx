@@ -120,7 +120,7 @@ export function SeatPage() {
 
   return (
     <section>
-      <p style={{ margin: 0 }}><Link to="/">← Tous les événements</Link></p>
+      <p style={{ margin: 0 }}><Link to="/events">← Tous les événements</Link></p>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", flexWrap: "wrap" }}>
         <div>
           <h1>{event!.title}</h1>
