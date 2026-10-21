@@ -14,7 +14,7 @@ docker compose up -d
 cd backend
 python -m venv .venv && source .venv/bin/activate     # Windows : .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env            # puis coller la DATABASE_URL de Neon (sslmode=require)
+cp .env.example .env            
 python manage.py makemigrations accounts ticketing      # une seule fois (migrations non versionnées ici)
 python manage.py migrate
 python manage.py seed_demo      # comptes + 2 événements
